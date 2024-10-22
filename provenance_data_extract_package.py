@@ -4,6 +4,8 @@ import numpy as np
 import ipywidgets as widgets
 from IPython.display import display
 import re
+import pandas as pd
+import os
 
 class prov_packages:
 
@@ -61,7 +63,12 @@ class prov_packages:
 
         return prefix_selection
     
-
+    def sub_bucket_folders(self,BUCKET_NAME,Prefix):
+        s3 = boto3.client('s3')
+        response_2 = s3.list_objects_v2(Bucket=f"{BUCKET_NAME}",Prefix = Prefix,Delimiter="/")
+        files_inter_backchannel = sorted([prefix['Prefix'].split('/')[1] for prefix in response_2['CommonPrefixes'] if 'CommonPrefixes' in response_2])
+        return files_inter_backchannel[0]
+    
     def get_filenames(self,BUCKET_NAME,prefix_name):
         try:
             s3 = boto3.client('s3')
@@ -74,7 +81,7 @@ class prov_packages:
                 keys_new = [prefix['Key'] for prefix in response2['Contents'] if 'Contents' in response2]
                 return keys_new
         except Exception as e:
-            print('No files available in the directory!!')
+            print(f'No files available in the directory! : {BUCKET_NAME} - {prefix_name}')
             print(f"Exception error: {str(e)}")
             return []
         
@@ -105,7 +112,48 @@ class prov_packages:
     def match_pattern(self,string_ls):
         pattern = re.compile(r'.*?\.tar\.gz')
         extracted_parts = set([pattern.match(s).group(0).split('/')[-1] if pattern.match(s) else None for s in string_ls])
-        return extracted_parts
+        return extracted_parts   
 
+    def extract_data(self,testset_files,comparator_files,Testset_BUCKET_NAME,Comparator_BUCKET_NAME):
+        testset_files = [i for i in testset_files if i.split('/')[-2] not in ["field_extraction","format_conversion","text_to_attributes"]]
+        comparator_files = [i for i in comparator_files if i.split('/')[-2] not in ["field_extraction","format_conversion","text_to_attributes"]]
+
+        testset_services = self.services_data(testset_files,Testset_BUCKET_NAME)
+        comparator_services = self.services_data(comparator_files,Comparator_BUCKET_NAME)
+        services_list = ["termite","xpath_union","entity_tag","entity_subheading","label_and_weight","streaming_relevancy"]
+
+        services_used_counts = {}
+        for key in services_list:
+                services_used_counts[key] = {"Services":key,"Comparator+Testset ID": f"{comparator_files[0].split('/')[2]}_{testset_files[0].split('/')[2]}",f"Comparator_{comparator_files[0].split('/')[0]}":["No diff"] if not list(self.match_pattern(comparator_services[key])-self.match_pattern(testset_services[key])) else list(self.match_pattern(comparator_services[key])-self.match_pattern(testset_services[key])),
+                                f"Testset_{testset_files[0].split('/')[0]}": ["No diff"] if not list(self.match_pattern(testset_services[key])-self.match_pattern(comparator_services[key])) else list(self.match_pattern(testset_services[key])-self.match_pattern(comparator_services[key]))}
+
+
+        dict_services = {}
+        for service in services_used_counts.keys():
+            dict_services[service] = pd.DataFrame(services_used_counts[service])
+
+        return dict_services
+    
+    def standalone_file_data_extract(self,):
+        if len(os.listdir('Input_files'))>0:
+            file = os.listdir('Input_files')[0]
+            with open(f'Input_files/{file}','r') as file:
+                data = json.loads(file.read())
+
+            df_standalone_file = pd.DataFrame(self.match_pattern(data['provenance'][0]['externalResourceVersion']),columns=["Packages"])
+
+            df_standalone_file = df_standalone_file.drop_duplicates().reset_index(drop=True)
+
+            return df_standalone_file
+        else:
+            print('No standalone file present inside Input_files directory!!')
+            return pd.DataFrame()
         
+    def highlight_true(self,cell):
+        if cell == "No diff":
+            return 'background-color: lightgreen'
+        else:
+            return 'background-color: red'
+        return ''
+    
 
