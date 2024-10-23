@@ -4,3 +4,4 @@ pathlib
 boto3
 ipywidgets
 jinja2
+openpyxl

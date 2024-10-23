@@ -13,9 +13,10 @@ class prov_packages:
         pass
 
     def select_bucket(self,description):
-        s3 = boto3.client('s3')
-        response = s3.list_buckets()
-        buckets = [bucket['Name'] for bucket in response['Buckets']]
+        buckets = [
+                    'bce-car-flow-uat-testing',
+                    'bce-car-int-runs-backup'
+                    ]
 
         # Create the dropdown widget
         bucket_dropdown = widgets.Dropdown(
@@ -68,7 +69,7 @@ class prov_packages:
         response_2 = s3.list_objects_v2(Bucket=f"{BUCKET_NAME}",Prefix = Prefix,Delimiter="/")
         files_inter_backchannel = sorted([prefix['Prefix'].split('/')[1] for prefix in response_2['CommonPrefixes'] if 'CommonPrefixes' in response_2])
 
-        intermediate_folder = [folder for folder in files_inter_backchannel if 'intermediate' in folder and (folder=='intermediate-responses' or folder=='intermediate-files')]
+        intermediate_folder = [folder for folder in files_inter_backchannel if 'intermediate' in folder.lower()]
         return intermediate_folder[0]
 
     
@@ -142,7 +143,6 @@ class prov_packages:
     def standalone_file_data_extract(self,):
         files = [file for file in os.listdir('Input_files') if file!='.gitkeep']
         if len(files)>0:
-            # file = os.listdir('Input_files')[0]
             with open(f'Input_files/{files[0]}','r') as file:
                 data = json.loads(file.read())
 
