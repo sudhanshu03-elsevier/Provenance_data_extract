@@ -1,5 +1,6 @@
 pandas
 numpy
 pathlib
-json
 boto3
+ipywidgets
+jinja2

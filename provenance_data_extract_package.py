@@ -67,7 +67,10 @@ class prov_packages:
         s3 = boto3.client('s3')
         response_2 = s3.list_objects_v2(Bucket=f"{BUCKET_NAME}",Prefix = Prefix,Delimiter="/")
         files_inter_backchannel = sorted([prefix['Prefix'].split('/')[1] for prefix in response_2['CommonPrefixes'] if 'CommonPrefixes' in response_2])
-        return files_inter_backchannel[0]
+
+        intermediate_folder = [folder for folder in files_inter_backchannel if 'intermediate' in folder and (folder=='intermediate-responses' or folder=='intermediate-files')]
+        return intermediate_folder[0]
+
     
     def get_filenames(self,BUCKET_NAME,prefix_name):
         try:
@@ -115,8 +118,10 @@ class prov_packages:
         return extracted_parts   
 
     def extract_data(self,testset_files,comparator_files,Testset_BUCKET_NAME,Comparator_BUCKET_NAME):
-        testset_files = [i for i in testset_files if i.split('/')[-2] not in ["field_extraction","format_conversion","text_to_attributes"]]
-        comparator_files = [i for i in comparator_files if i.split('/')[-2] not in ["field_extraction","format_conversion","text_to_attributes"]]
+
+        exclude_services_list = ["field_extraction","format_conversion","text_to_attributes"]
+        testset_files = [s for s in testset_files if all(sub not in s for sub in exclude_services_list)]
+        comparator_files = [s for s in comparator_files if all(sub not in s for sub in exclude_services_list)]
 
         testset_services = self.services_data(testset_files,Testset_BUCKET_NAME)
         comparator_services = self.services_data(comparator_files,Comparator_BUCKET_NAME)
@@ -135,9 +140,10 @@ class prov_packages:
         return dict_services
     
     def standalone_file_data_extract(self,):
-        if len(os.listdir('Input_files'))>0:
-            file = os.listdir('Input_files')[0]
-            with open(f'Input_files/{file}','r') as file:
+        files = [file for file in os.listdir('Input_files') if file!='.gitkeep']
+        if len(files)>0:
+            # file = os.listdir('Input_files')[0]
+            with open(f'Input_files/{files[0]}','r') as file:
                 data = json.loads(file.read())
 
             df_standalone_file = pd.DataFrame(self.match_pattern(data['provenance'][0]['externalResourceVersion']),columns=["Packages"])
@@ -146,7 +152,7 @@ class prov_packages:
 
             return df_standalone_file
         else:
-            print('No standalone file present inside Input_files directory!!')
+            # print('No standalone file present inside Input_files directory!!')
             return pd.DataFrame()
         
     def highlight_true(self,cell):
